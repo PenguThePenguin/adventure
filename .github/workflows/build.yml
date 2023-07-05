@@ -1,12 +1,28 @@
 name: "build"
 
-on:
-  push:
-    branches: "**"
-    tags-ignore: ["**"]
-  pull_request:
+on: ["pull_request", "push"]
 
 jobs:
-  call-build:
-    uses: "PenguThePenguin/.github/.github/workflows/shared-ci.yaml@trunk"
-    secrets: "inherit"
+  build:
+    # Only run on PRs if the source branch is on someone else's repo
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    strategy:
+      matrix:
+        os: ["ubuntu-latest", "windows-latest"]
+    runs-on: "${{ matrix.os }}"
+    steps:
+      - name: "checkout repository"
+        uses: "actions/checkout@v2"
+      - name: "setup jdk 11"
+        uses: "actions/setup-java@v2"
+        with:
+          distribution: "adopt"
+          java-version: "11"
+      - name: "build"
+        run: "./gradlew build"
+      - name: "publish"
+        if: ${{ runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: "./gradlew publish"
+        env:
+          ORG_GRADLE_PROJECT_sonatypeUsername: ${{ secrets.SONATYPE_USERNAME }}
+          ORG_GRADLE_PROJECT_sonatypePassword: ${{ secrets.SONATYPE_PASSWORD }}
